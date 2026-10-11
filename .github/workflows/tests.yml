@@ -13,6 +13,6 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install minimal dependencies
-        run: pip install numpy pandas pyarrow tabulate pytest
+        run: pip install numpy pandas pyarrow tabulate pytest duckdb
       - name: Run tests on fake data
         run: pytest -q
