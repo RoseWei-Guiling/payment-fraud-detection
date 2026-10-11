@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+.pytest_cache/
+data/
+*.pkl
+.DS_Store
+.kaggle/
+kaggle.json
+tests/fake_raw/
