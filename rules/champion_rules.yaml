@@ -1,0 +1,66 @@
+# Candidate fraud rules: the "champion" every model must beat.
+#
+# Each rule flags a payment when its condition is true. Conditions are pandas
+# expressions over data/processed/features.parquet. A blank (missing) value never
+# triggers a rule.
+#
+# The list deliberately mixes rules suggested by the data (Steps 1-3) with classic
+# "common sense" rules that Step 2 suggested would work badly here. The optimiser
+# (scripts/build_rules.py) picks which rules to keep, using training months only.
+
+rules:
+  - name: burst_24h
+    condition: "uid_n_24h >= 3"
+    meaning: Customer made 3 or more payments in the previous 24 hours
+    why: Step 2 showed fraud rising from 1.85% (0 payments) to about 5% (2+). Draining and card testing look like bursts.
+
+  - name: burst_1h
+    condition: "uid_n_1h >= 2"
+    meaning: Customer made 2 or more payments in the previous hour
+    why: The same idea at a shorter, sharper window.
+
+  - name: unidentified_customer
+    condition: "uid_complete == 0 and TransactionAmt >= 100"
+    meaning: No billing address or card start date, and the amount is 100 or more
+    why: Payments with no customer ID are 11.2% fraud vs 2.5% (Step 3).
+
+  - name: risky_email_domain
+    condition: "P_emaildomain_te >= 0.08"
+    meaning: Purchaser's email domain had 8% or more fraud in the training months
+    why: Banks keep lists of risky domains; this builds the list from past fraud.
+
+  - name: risky_card_and_product
+    condition: "card_type_and_product_te >= 0.10"
+    meaning: This card network + debit/credit + product combination had 10% or more fraud
+    why: Some combinations (e.g. certain credit cards on product C) are far riskier.
+
+  - name: shared_device
+    condition: "uids_per_fingerprint >= 5"
+    meaning: Five or more different customers used this exact device setup
+    why: One device behind many cards can mean a fraud ring.
+
+  - name: emails_differ
+    condition: "email_P_equals_R == 0"
+    meaning: Purchaser and recipient email domains are both known but different
+    why: Buying for someone else is a classic scam and resale pattern.
+
+  - name: foreign_card_cents
+    condition: "amt_is_round == 0 and amt_cents not in [0.5, 0.95, 0.99] and has_identity == 1"
+    meaning: Odd pennies (e.g. 0.137) on a payment with device data
+    why: Odd pennies usually mean a currency conversion, i.e. a card from another country.
+
+  # Classic rules that Step 2 suggested would NOT work here (kept to show it with numbers):
+  - name: new_device
+    condition: "new_fingerprint_for_uid == 1"
+    meaning: A returning customer on a device setup they haven't used before
+    why: The textbook account-takeover rule. Step 2 found the opposite pattern in this data.
+
+  - name: big_for_customer
+    condition: "amt_to_uid_mean >= 5"
+    meaning: The amount is 5 times or more the customer's usual amount
+    why: The textbook "unusual spend" rule. Step 2 found almost no signal.
+
+  - name: night_time
+    condition: "hour <= 4 and TransactionAmt >= 200"
+    meaning: Between midnight and 5am and 200 or more
+    why: "The workshop-game rule. Caveat: the dataset's clock and time zone are unknown."
