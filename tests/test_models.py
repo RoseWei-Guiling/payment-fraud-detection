@@ -42,3 +42,19 @@ def test_text_becomes_one_shared_category():
     df = text_to_categories(df, ["email", "amt"])
     assert isinstance(df["email"].dtype, pd.CategoricalDtype)
     assert pd.api.types.is_float_dtype(df["amt"])
+
+
+def test_scorecard_drops_a_feature_with_a_flipped_sign():
+    pytest = __import__("pytest")
+    pytest.importorskip("optbinning")
+    from src.models import train_scorecard
+    rng = np.random.default_rng(0)
+    n = 30_000
+    z = rng.normal(size=n)
+    a = z + rng.normal(scale=0.3, size=n)
+    b = z + rng.normal(scale=0.3, size=n)  # on its own, high b looks risky (it moves with z)...
+    logit = -3 + 2.0 * a - 1.5 * b          # ...but once a is known, high b is SAFER: a flipped sign
+    y = (rng.random(n) < 1 / (1 + np.exp(-logit))).astype(int)
+    sc, _, kept, dropped = train_scorecard(pd.DataFrame({"a": a, "b": b}), y, ["a", "b"])
+    assert dropped == ["b"] and kept == ["a"]
+    assert all(c < 0 for c in sc.estimator_.coef_[0])  # every kept feature points the right way

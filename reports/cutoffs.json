@@ -1,6 +1,6 @@
 {
   "cost_per_blocked_genuine": 10,
   "lightgbm_threshold": 0.02586168012289029,
-  "scorecard_threshold": 0.03960012782599184,
+  "scorecard_threshold": 0.038614257415600664,
   "chosen_on": "validation month"
 }

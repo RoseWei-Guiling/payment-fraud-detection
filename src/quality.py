@@ -33,21 +33,26 @@ def family_missingness(df):
 
 
 def by_split(df):
-    g = df.groupby("split", observed=True)
+    fraud_amount = df["TransactionAmt"] * df["isFraud"]
+    by = df.groupby("split", observed=True)
     out = pd.DataFrame({
-        "transactions": g.size(),
-        "fraud_rate": g["isFraud"].mean().map("{:.2%}".format),
-        "fraud_value_share": (g.apply(lambda x: (x.TransactionAmt * x.isFraud).sum() / x.TransactionAmt.sum(),
-                                      include_groups=False)).map("{:.2%}".format),
-        "first_day": g["day"].min(),
-        "last_day": g["day"].max(),
+        "transactions": by.size(),
+        "fraud_rate": by["isFraud"].mean().map("{:.2%}".format),
+        # share of the money that was fraud, as opposed to the share of transactions
+        "fraud_value_share": (fraud_amount.groupby(df["split"], observed=True).sum()
+                              / by["TransactionAmt"].sum()).map("{:.2%}".format),
+        "first_day": by["day"].min(),
+        "last_day": by["day"].max(),
     })
     return out.reindex(["train", "valid", "oot"])
 
 
 def by_month(df):
-    g = df.groupby("month", observed=True)
-    return pd.DataFrame({"transactions": g.size(), "fraud_rate": g["isFraud"].mean().map("{:.2%}".format)})
+    by = df.groupby("month", observed=True)
+    return pd.DataFrame({
+        "transactions": by.size(),
+        "fraud_rate": by["isFraud"].mean().map("{:.2%}".format),
+    })
 
 
 def checks(df):
@@ -76,8 +81,10 @@ def write_report(df, uid_stats, path):
               "## Rebuilt customer ID", "", "| Check | Result |", "| --- | --- |"]
     lines += [f"| {k.replace('_', ' ')} | {v} |" for k, v in uid_stats.items()]
     lines += ["", "## Notes", "",
-              "- Missing values are not errors here: many columns only apply to some products or to transactions with identity data.",
-              "- Missingness patterns are themselves predictive, so they are kept, not imputed away, for tree models.",
+              "- Missing values are not errors here: many columns only apply to some products "
+              "or to transactions with identity data.",
+              "- Missingness patterns are themselves predictive, so they are kept, not imputed away, "
+              "for tree models.",
               ""]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines))

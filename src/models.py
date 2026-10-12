@@ -106,22 +106,48 @@ def train_scorecard(X, y, features):
     its Weight of Evidence (how much more or less fraud it holds than average), and a
     logistic regression weights the features. Points: 600 = odds of 50 genuine to 1 fraud,
     and every 20 points doubles those odds (higher points = safer).
+
+    Sign check: with WoE inputs every coefficient should be negative, so a safer bin always
+    earns more points. When features overlap (e.g. product W never has device details, or
+    payments in 24 hours vs 7 days), the regression can flip a sign, and then a SAFER bin
+    earns FEWER points, which makes the reasons nonsense. Standard fix: drop the feature
+    with the most wrong-signed coefficient, refit, and repeat until every sign is right.
+    Binning doesn't depend on the other features, so it's done once and only the regression
+    is refitted.
+
+    Returns (scorecard, categorical features, features kept, features dropped for sign).
     """
     from optbinning import BinningProcess, Scorecard
     from sklearn.linear_model import LogisticRegression
 
-    categorical = [c for c in features if not pd.api.types.is_numeric_dtype(X[c])]
-    data = X[features].copy()
-    for c in categorical:
-        data[c] = data[c].astype("object").where(data[c].notna(), np.nan)
-    binning = BinningProcess(features, categorical_variables=categorical, max_n_bins=6, min_bin_size=0.02,
-                             split_digits=4)
-    scorecard = Scorecard(binning_process=binning, estimator=LogisticRegression(max_iter=1000),
-                          scaling_method="pdo_odds",
+    def prepared(cols):
+        data = X[cols].copy()
+        cats = [c for c in cols if not pd.api.types.is_numeric_dtype(X[c])]
+        for c in cats:
+            data[c] = data[c].astype("object").where(data[c].notna(), np.nan)
+        return data, cats
+
+    def binning_for(cols, cats):
+        return BinningProcess(cols, categorical_variables=cats, max_n_bins=6, min_bin_size=0.02, split_digits=4)
+
+    data, categorical = prepared(list(features))
+    woe = binning_for(list(features), categorical).fit_transform(data, y, metric="woe")
+    kept, dropped = list(features), []
+    while len(kept) > 1:
+        coef = dict(zip(kept, LogisticRegression(max_iter=1000).fit(woe[kept], y).coef_[0]))
+        worst = max(kept, key=coef.get)
+        if coef[worst] <= 0:
+            break
+        dropped.append(worst)
+        kept.remove(worst)
+
+    data, categorical = prepared(kept)
+    scorecard = Scorecard(binning_process=binning_for(kept, categorical),
+                          estimator=LogisticRegression(max_iter=1000), scaling_method="pdo_odds",
                           scaling_method_params={"pdo": 20, "odds": 50, "scorecard_points": 600},
                           rounding=True)  # whole-number points; default direction = higher points, safer
     scorecard.fit(data, y, show_digits=4)
-    return scorecard, categorical
+    return scorecard, categorical, kept, dropped
 
 
 def scorecard_predict(scorecard, X, features, categorical):

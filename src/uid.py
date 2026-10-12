@@ -12,10 +12,13 @@ import pandas as pd
 
 
 def add_uid(df):
+    """Adds uid = 'card1_addr1_startday', e.g. '13926_315_-12', plus account age columns."""
     start_day = np.floor(df["day"] - df["D1"])
-    parts = [df["card1"].astype("string"), df["addr1"].astype("Int64").astype("string"),
-             start_day.astype("Int64").astype("string")]
-    uid = parts[0] + "_" + parts[1] + "_" + parts[2]
+    card = df["card1"].astype("string")
+    address = df["addr1"].astype("Int64").astype("string")
+    start = start_day.astype("Int64").astype("string")
+    uid = card + "_" + address + "_" + start  # missing if address or start day is missing
+
     new = pd.DataFrame({
         "account_start_day": start_day.astype("float32"),
         "account_age_days": df["D1"].astype("float32"),
@@ -24,6 +27,10 @@ def add_uid(df):
         "uid": uid.fillna("unknown").astype("category"),
     }, index=df.index)
     return pd.concat([df, new], axis=1)
+
+
+def pct(numerator, denominator):
+    return f"{numerator / denominator:.1%}" if denominator else "n/a"
 
 
 def uid_check(df):
@@ -36,24 +43,28 @@ def uid_check(df):
     """
     known = df.loc[df["uid_complete"] == 1, ["uid", "TransactionDT", "isFraud"]].copy()
     known["uid"] = known["uid"].astype(str)
-    per_uid = known.groupby("uid").agg(n=("isFraud", "size"), fraud=("isFraud", "mean"))
-    multi = per_uid[per_uid["n"] > 1]
-    any_fraud = multi[multi["fraud"] > 0]
 
-    first_fraud = known[known["isFraud"] == 1].groupby("uid")["TransactionDT"].min().rename("first_fraud_dt")
-    k = known.join(first_fraud, on="uid", how="inner")
-    after = k[k["TransactionDT"] > k["first_fraud_dt"]]
-    had_history = (k["TransactionDT"] < k["first_fraud_dt"]).groupby(k["uid"]).any()
+    per_customer = known.groupby("uid").agg(n=("isFraud", "size"), fraud_share=("isFraud", "mean"))
+    repeat_customers = per_customer[per_customer["n"] > 1]
+    repeat_fraud_customers = repeat_customers[repeat_customers["fraud_share"] > 0]
+
+    first_fraud_time = known[known["isFraud"] == 1].groupby("uid")["TransactionDT"].min()
+    fraud_customer_rows = known.join(first_fraud_time.rename("first_fraud_dt"), on="uid", how="inner")
+    later = fraud_customer_rows["TransactionDT"] > fraud_customer_rows["first_fraud_dt"]
+    earlier = fraud_customer_rows["TransactionDT"] < fraud_customer_rows["first_fraud_dt"]
+    after_first_fraud = fraud_customer_rows[later]
+    had_genuine_history = earlier.groupby(fraud_customer_rows["uid"]).any()
 
     return {
-        "transactions_with_complete_uid": f"{len(known) / len(df):.1%}",
-        "distinct_customers": len(per_uid),
-        "median_transactions_per_customer": float(per_uid["n"].median()),
-        "customers_with_2plus_transactions": f"{len(multi) / len(per_uid):.1%}",
-        "fraud_customers_that_are_all_fraud": f"{(any_fraud['fraud'] == 1).mean():.1%}" if len(any_fraud) else "n/a",
+        "transactions_with_complete_uid": pct(len(known), len(df)),
+        "distinct_customers": len(per_customer),
+        "median_transactions_per_customer": float(per_customer["n"].median()),
+        "customers_with_2plus_transactions": pct(len(repeat_customers), len(per_customer)),
+        "fraud_customers_that_are_all_fraud": pct((repeat_fraud_customers["fraud_share"] == 1).sum(),
+                                                  len(repeat_fraud_customers)),
         "baseline_fraud_rate": f"{df['isFraud'].mean():.1%}",
         # The key check: should be far above the baseline if uid works.
-        "fraud_rate_after_customers_first_fraud": f"{after['isFraud'].mean():.1%}" if len(after) else "n/a",
+        "fraud_rate_after_customers_first_fraud": pct(after_first_fraud["isFraud"].sum(), len(after_first_fraud)),
         # Fraud customers who looked genuine first: these are the hard cases for rules.
-        "fraud_customers_with_genuine_history": f"{had_history.mean():.1%}" if len(had_history) else "n/a",
+        "fraud_customers_with_genuine_history": pct(had_genuine_history.sum(), len(had_genuine_history)),
     }

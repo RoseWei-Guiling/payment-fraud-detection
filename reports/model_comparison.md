@@ -10,7 +10,7 @@ Every model blocks the same **4.3%** of payments as the rules champion, so the q
 | model                              | decline_rate   | fraud_caught   | fraud_value_caught   | precision   |   false_positive_ratio |   auc |   gini |   pr_auc | decline_rate_to_match_champion   |
 |:-----------------------------------|:---------------|:---------------|:---------------------|:------------|-----------------------:|------:|-------:|---------:|:---------------------------------|
 | Rules champion                     | 4.3%           | 22.9%          | 8.0%                 | 18.6%       |                    4.4 | 0.596 |  0.193 |    0.069 | 4.3%                             |
-| Logistic scorecard (interpretable) | 4.3%           | 25.8%          | 16.0%                | 21.0%       |                    3.8 | 0.799 |  0.598 |    0.149 | 3.6%                             |
+| Logistic scorecard (interpretable) | 4.3%           | 23.2%          | 7.9%                 | 18.8%       |                    4.3 | 0.795 |  0.59  |    0.144 | 4.1%                             |
 | LightGBM (all features)            | 4.3%           | 56.8%          | 56.0%                | 46.1%       |                    1.2 | 0.919 |  0.838 |    0.556 | 0.9%                             |
 | LightGBM segmented (W / not W)     | 4.3%           | 56.7%          | 56.5%                | 46.0%       |                    1.2 | 0.919 |  0.838 |    0.554 | 0.9%                             |
 | Random forest (numeric features)   | 4.3%           | 49.6%          | 45.7%                | 40.3%       |                    1.5 | 0.892 |  0.785 |    0.462 | 1.0%                             |
@@ -49,8 +49,10 @@ Top 3 features pushing each payment towards fraud (LightGBM SHAP values):
 - Payment 3415461 (fraud: yes): C1 = 116; V201 = 5; V188 = 4
 - Payment 3438309 (fraud: yes): C14 = 0; V148 = 4; V188 = 4
 
-## Scorecard features (30)
+## Scorecard features (11)
 
-`uid_n_7d`, `card_type_and_product_te`, `uid_amt_24h`, `uid_n_24h`, `R_emaildomain_te`, `R_email_provider`, `ProductCD`, `uid_n_1h`, `browser_family`, `uids_per_fingerprint`, `uid_txn_number`, `addr1_te`, `n_missing_d`, `email_P_equals_R`, `amt_cents`, `n_missing_v`, `DeviceType`, `uid_complete`, `n_missing_id`, `has_identity`, `n_missing_m`, `addr1_freq`, `device_family`, `uid_secs_since_prev`, `m_true_count`, `card6`, `device_family_te`, `id_31_freq`, `fingerprint_freq`, `TransactionAmt`
+`uid_n_7d`, `R_email_provider`, `browser_family`, `uids_per_fingerprint`, `uid_txn_number`, `n_missing_d`, `amt_cents`, `uid_secs_since_prev`, `card6`, `device_family_te`, `TransactionAmt`
+
+Dropped because the regression gave them the wrong sign (a safer bin would have earned fewer points, usually because they overlap with other features): `has_identity`, `ProductCD`, `email_P_equals_R`, `uid_complete`, `uid_n_24h`, `m_true_count`, `n_missing_v`, `id_31_freq`, `device_family`, `R_emaildomain_te`, `n_missing_id`, `DeviceType`, `uid_amt_24h`, `fingerprint_freq`, `addr1_freq`, `uid_n_1h`, `addr1_te`, `card_type_and_product_te`, `n_missing_m`.
 
 Points for every bin are in `reports/scorecard_points.md`.

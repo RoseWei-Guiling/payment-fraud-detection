@@ -103,14 +103,16 @@ def main():
     MODELS.mkdir(parents=True, exist_ok=True)
 
     # 1. Scorecard on interpretable features
-    sc_features = interpretable_features(groups, iv)
-    scorecard, categorical = train_scorecard(feats.loc[train_mask], feats.loc[train_mask, "isFraud"], sc_features)
+    candidates = interpretable_features(groups, iv)
+    scorecard, categorical, sc_features, sign_dropped = train_scorecard(
+        feats.loc[train_mask], feats.loc[train_mask, "isFraud"], candidates)
     out["scorecard"], out["scorecard_points"] = scorecard_predict(scorecard, scored, sc_features, categorical)
     rows.append(evaluate("Logistic scorecard (interpretable)", out.loc[valid.index, "scorecard"], valid,
                          decline_rate, champion["fraud_caught"]))
     with open(MODELS / "scorecard.pkl", "wb") as f:
         pickle.dump({"model": scorecard, "features": sc_features, "categorical": categorical}, f)
-    log(f"Scorecard trained on {len(sc_features)} interpretable features", t0)
+    log(f"Scorecard trained on {len(sc_features)} interpretable features "
+        f"({len(sign_dropped)} dropped for a flipped sign: {', '.join(sign_dropped) or 'none'})", t0)
 
     # 2. LightGBM on everything
     lgbm = train_lightgbm(feats.loc[fit_mask, everything], feats.loc[fit_mask, "isFraud"],
@@ -187,6 +189,9 @@ def main():
         *examples, "",
         f"## Scorecard features ({len(sc_features)})", "",
         ", ".join(f"`{f}`" for f in sc_features), "",
+        "Dropped because the regression gave them the wrong sign (a safer bin would have earned fewer "
+        "points, usually because they overlap with other features): "
+        + (", ".join(f"`{f}`" for f in sign_dropped) or "none") + ".", "",
         "Points for every bin are in `reports/scorecard_points.md`.", "",
     ]))
     points = scorecard.table(style="summary")

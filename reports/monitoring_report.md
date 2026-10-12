@@ -7,7 +7,7 @@
 | score              |   psi | status   |
 |:-------------------|------:|:---------|
 | LightGBM           | 0.004 | stable   |
-| Logistic scorecard | 0.004 | stable   |
+| Logistic scorecard | 0.009 | stable   |
 
 ## Feature drift: LightGBM's 20 most important features (training months -> test month)
 
