@@ -1,0 +1,22 @@
+{
+  "oot_payments": 94636,
+  "oot_fraud_rate": 0.03468024853121434,
+  "lightgbm_gini_valid": 0.837719397835885,
+  "lightgbm_gini_oot": 0.8125291296060699,
+  "rules_gini_oot": 0.1799818325313356,
+  "expected_cost_rule_oot": {
+    "decline_rate": 0.0653768122067712,
+    "fraud_caught": 0.5569774527726996,
+    "fraud_value_caught": 0.7330260382463992,
+    "net_benefit_per_100k": 337542.8358001658
+  },
+  "rules_oot": {
+    "decline_rate": 0.0383257956802908,
+    "fraud_caught": 0.21206581352833637,
+    "fraud_value_caught": 0.07550947211743247,
+    "net_benefit_per_100k": 8543.93990138885
+  },
+  "lightgbm_score_psi": 0.004108880900790803,
+  "new_customer_gini": 0.710414431565251,
+  "cost_per_blocked_genuine": 10
+}
