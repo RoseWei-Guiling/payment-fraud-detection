@@ -106,18 +106,33 @@ def plain_reason(feature, value):
     return f"{plain_name(feature)}: {show_value(value)}"
 
 
-def scorecard_reasons(scorecard, X, features, top=3):
-    """For each payment, the features where it lost most points vs that feature's best bin.
+def points_from_woe(table, feature, woe):
+    """Points a payment earns on one feature, given its Weight of Evidence (WoE).
 
-    Each bin's points come from its Weight of Evidence (WoE), so we look the points up by
-    (feature, WoE). Blanks have their own 'Missing' bin and are handled the same way.
+    Inside one feature, points are a straight line in WoE (points = a + b x WoE, then
+    rounded), because every bin shares the feature's coefficient. So:
+      - a WoE listed in the scorecard table gets that bin's exact points;
+      - any other WoE (e.g. a category first seen after training) gets the line's value.
     """
+    rows = table[table["Variable"] == feature]
+    known_woe, known_points = rows["WoE"].to_numpy(float), rows["Points"].to_numpy(float)
+    woe = np.asarray(woe, dtype=float)
+    nearest = np.abs(woe[:, None] - known_woe[None, :]).argmin(axis=1)
+    exact = np.isclose(woe, known_woe[nearest], rtol=0, atol=1e-6)
+    if np.unique(known_woe.round(6)).size >= 2:
+        slope, intercept = np.polyfit(known_woe, known_points, 1)
+        on_line = np.round(intercept + slope * woe)
+    else:
+        on_line = np.full(len(woe), known_points[0])
+    return np.where(exact, known_points[nearest], on_line)
+
+
+def scorecard_reasons(scorecard, X, features, top=3):
+    """For each payment, the features where it lost most points vs that feature's best bin."""
     table = scorecard.table(style="detailed")
-    points = {(r.Variable, round(float(r.WoE), 8)): r.Points for _, r in table.iterrows()}
     best = table.groupby("Variable")["Points"].max()
     woe = scorecard.binning_process_.transform(X[features], metric="woe")
-    lost = pd.DataFrame({f: best[f] - woe[f].map(lambda w, f=f: points[(f, round(float(w), 8))])
-                         for f in features}, index=X.index)
+    lost = pd.DataFrame({f: best[f] - points_from_woe(table, f, woe[f]) for f in features}, index=X.index)
     out = []
     for i in range(len(lost)):
         row = lost.iloc[i].sort_values(ascending=False).head(top)

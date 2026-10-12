@@ -42,3 +42,11 @@ def test_plain_words():
     assert plain_name("V188") == "a Vesta engineered risk signal (V188)"
     assert plain_reason("TransactionAmt", 1234.5) == "payment amount: 1,234"
     assert plain_reason("dist1", np.nan) == "distance between addresses: blank"
+
+
+def test_scorecard_points_for_a_woe_not_in_the_table():
+    from src.reasons import points_from_woe
+    # points = 300 - 40 x WoE for this feature
+    table = pd.DataFrame({"Variable": ["f"] * 4, "WoE": [-0.5, 0.0, 0.25, 1.0], "Points": [320.0, 300.0, 290.0, 260.0]})
+    assert points_from_woe(table, "f", [0.25, -0.5]).tolist() == [290.0, 320.0]   # listed: exact
+    assert points_from_woe(table, "f", [-1.4569]).tolist() == [358.0]             # unlisted: on the line
